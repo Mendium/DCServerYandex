@@ -1,0 +1,17 @@
+syntax = "proto3"; // версия proto файлов
+package orchestrator; // название пакета
+option go_package = "github.com/mendium/orchestrator-c/proto";
+
+message Expression {
+  string expression = 1;
+  int32 task_id = 2;
+}
+
+message StatusCode {
+  string status_code = 1;
+}
+
+service OrchestratorService {
+  rpc Orchestrate (Expression) returns (StatusCode);
+}
+

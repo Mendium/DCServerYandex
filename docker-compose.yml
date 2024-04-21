@@ -1,0 +1,32 @@
+version: '3'
+
+services:
+  app1:
+    build:
+      context: ./organizer
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    depends_on:
+      - app2
+
+  app2:
+    build:
+      context: ./orchestrator
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
+    depends_on:
+      - db
+  db:
+    image: mysql:latest
+    restart: always
+    environment:
+      MYSQL_DATABASE: docker_test
+      MYSQL_USER: docker_test_exo
+      MYSQL_PASSWORD: 1111
+      MYSQL_ROOT_PASSWORD: toor
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./mysql-data:/var/lib/mysql

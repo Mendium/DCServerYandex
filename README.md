@@ -44,5 +44,5 @@
 
 # Поддержка:
 ## Если что-то не получается, всегда готов помочь :)
-## tg: @rielexx discord: darklexx_
+## tg: @rielexx          discord: darklexx_
 # Ожидаемая оценка: 50 баллов.

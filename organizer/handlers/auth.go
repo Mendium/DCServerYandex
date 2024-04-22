@@ -11,27 +11,26 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 )
 
-// User представляет данные о пользователе для аутентификации
 type User struct {
 	Login    string `json:"login"`
 	Password string `json:"password"`
 }
 
-// Секретный ключ для подписи JWT токена
+// секретный ключ для jwt токена
 var secretKey = []byte("bobr_kurwa")
 
-// Строка подключения к базе данных MySQL
-const dsn = "docker_test_exo:1111@tcp(localhost:3306)/docker_test"
+// адрес бд
+const dsn = "docker_test_exo:1111@tcp(db:3306)/docker_test"
 
-// LoginHandler обрабатывает запросы на аутентификацию пользователя
+// авторизация
 func LoginHandler(w http.ResponseWriter, r *http.Request) {
-	// Проверяем метод запроса
+	// проверяем метод запроса
 	if r.Method != http.MethodPost {
 		http.Error(w, "Метод не поддерживается", http.StatusMethodNotAllowed)
 		return
 	}
 
-	// Парсим JSON из тела запроса
+	// парсим JSON из тела запроса
 	var user User
 	err := json.NewDecoder(r.Body).Decode(&user)
 	if err != nil {
@@ -39,7 +38,7 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Проверяем, существует ли пользователь в базе данных
+	// проверяем, существует ли пользователь в базе данных
 	db, err := sql.Open("mysql", dsn)
 	if err != nil {
 		http.Error(w, "Ошибка при подключении к базе данных", http.StatusInternalServerError)
@@ -54,19 +53,19 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Проверяем совпадение пароля
+	// проверяем совпадение пароля
 	if user.Password != dbPassword {
 		http.Error(w, "Неправильные логин или пароль", http.StatusUnauthorized)
 		return
 	}
 
-	// Создаем новый JWT токен с именем пользователя и сроком действия 1 час
+	// создание нового jwt токена на основе логина пользователя (срок действия - 1 час)
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"login": user.Login,
 		"exp":   time.Now().Add(time.Hour * 1).Unix(),
 	})
 
-	// Подписываем токен с секретным ключом
+	//подписывание токена секрет. ключом
 	tokenString, err := token.SignedString(secretKey)
 	if err != nil {
 		http.Error(w, "Ошибка при создании токена", http.StatusInternalServerError)
@@ -78,15 +77,15 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "Вход выполнен успешно. JWT токен: %s", tokenString)
 }
 
-// RegisterHandler обрабатывает запросы на регистрацию нового пользователя
+// регистрация нового пользователя
 func RegisterHandler(w http.ResponseWriter, r *http.Request) {
-	// Проверяем метод запроса
+	//проверка метода запроса
 	if r.Method != http.MethodPost {
 		http.Error(w, "Метод не поддерживается", http.StatusMethodNotAllowed)
 		return
 	}
 
-	// Парсим JSON из тела запроса
+	// парсинг json из body запроса
 	var user User
 	err := json.NewDecoder(r.Body).Decode(&user)
 	if err != nil {
@@ -94,7 +93,7 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Устанавливаем соединение с базой данных
+	// соединение с бд
 	db, err := sql.Open("mysql", dsn)
 	if err != nil {
 		http.Error(w, "Ошибка при подключении к базе данных", http.StatusInternalServerError)
@@ -102,15 +101,34 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer db.Close()
 
-	// SQL запрос для добавления пользователя в базу данных
+	existsU, _ := userExists(db, user.Login)
+	if existsU {
+		http.Error(w, "Такой логин уже существует.", http.StatusUnauthorized)
+		return
+	}
+
+	// запрос для добавления пользователя в бд
 	query := "INSERT INTO Users (Login, Password) VALUES (?, ?)"
 	_, err = db.Exec(query, user.Login, user.Password)
 	if err != nil {
 		http.Error(w, "Ошибка при добавлении пользователя в базу данных", http.StatusInternalServerError)
+		fmt.Println(err)
 		return
 	}
 
-	// Отправляем успешный ответ клиенту
+	//отправляем успешный ответ клиенту
 	w.WriteHeader(http.StatusOK)
 	fmt.Fprintf(w, "Регистрация завершена успешно")
+}
+
+func userExists(db *sql.DB, login string) (bool, error) {
+	query := "SELECT COUNT(*) FROM Users WHERE Login = ?"
+
+	var count int
+	err := db.QueryRow(query, login).Scan(&count)
+	if err != nil {
+		return false, err
+	}
+
+	return count > 0, nil
 }

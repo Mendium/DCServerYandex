@@ -13,6 +13,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"regexp"
 	"strconv"
 )
 
@@ -51,7 +52,7 @@ func TasksHandler(w http.ResponseWriter, r *http.Request) {
 // Функция для получения информации о задаче из базы данных
 func getTask(taskID int, login string) *Task {
 	// Подключение к базе данных
-	db, err := sql.Open("mysql", "docker_test_exo:1111@tcp(localhost:3306)/docker_test")
+	db, err := sql.Open("mysql", "docker_test_exo:1111@tcp(db:3306)/docker_test")
 	if err != nil {
 		fmt.Println("Ошибка при подключении к базе данных:", err)
 		return nil
@@ -82,26 +83,25 @@ func getTaskHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Парсинг и проверка токена
+	// парсинг и проверка токена
 	token, err := jwt.Parse(userReq.Token, func(token *jwt.Token) (interface{}, error) {
-		// Проверяем метод подписи токена
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("Неправильный метод подписи токена")
 		}
-		return secretKey, nil // Возвращаем секретный ключ для проверки подписи токена
+		return secretKey, nil
 	})
 	if err != nil {
 		http.Error(w, "Неверный токен", http.StatusUnauthorized)
 		return
 	}
 
-	// Проверяем, валиден ли токен
+	// проверка токена на валидность
 	if !token.Valid {
 		http.Error(w, "Токен недействителен", http.StatusUnauthorized)
 		return
 	}
 
-	// Извлекаем логин пользователя из токена
+	// пзвлекаем логин пользователя из токена
 	claims, ok := token.Claims.(jwt.MapClaims)
 	if !ok {
 		http.Error(w, "Неправильный формат токена", http.StatusInternalServerError)
@@ -113,14 +113,14 @@ func getTaskHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Получаем информацию о задаче из базы данных
+	// получаем информацию о задаче из базы данных
 	task := getTask(userReq.TaskID, login)
 	if task == nil {
 		http.Error(w, "Задача не найдена или не принадлежит текущему пользователю", http.StatusNotFound)
 		return
 	}
 
-	// Проверяем статус задачи и возвращаем ответ
+	// проверяем статус задачи и возвращаем ответ
 	switch task.Status {
 	case "pending":
 		w.WriteHeader(http.StatusOK)
@@ -134,7 +134,7 @@ func getTaskHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func postTaskHandler(w http.ResponseWriter, r *http.Request) {
-	db, err := sql.Open("mysql", "docker_test_exo:1111@tcp(localhost:3306)/docker_test")
+	db, err := sql.Open("mysql", "docker_test_exo:1111@tcp(db:3306)/docker_test")
 	if err != nil {
 		fmt.Println("Ошибка при подключении к базе данных:", err)
 		return
@@ -147,67 +147,79 @@ func postTaskHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Ошибка при чтении JSON", http.StatusBadRequest)
 		return
 	}
+	pattern := "[0-9+\\-*/()\\s]+"
 
-	// Парсинг и проверка токена
+	matched, err := regexp.MatchString(pattern, userReq.Expression)
+	if err != nil {
+		fmt.Fprintf(w, "Ошибка при проверке выражения")
+		return
+	}
+	if !matched {
+		fmt.Fprintf(w, "Выражение содержит лишние символы")
+		return
+	}
+
+	// парсинг и проверка токена
 	token, err := jwt.Parse(userReq.Token, func(token *jwt.Token) (interface{}, error) {
-		// Проверяем метод подписи токена
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("Неправильный метод подписи токена")
 		}
-		return secretKey, nil // Возвращаем секретный ключ для проверки подписи токена
+		return secretKey, nil // возвращаем секретный ключ для проверки подписи токена
 	})
 	if err != nil {
 		http.Error(w, "Неверный токен", http.StatusUnauthorized)
 		return
 	}
 
-	// Проверяем, валиден ли токен
+	// проверка токена на валидность
 	if !token.Valid {
 		http.Error(w, "Токен недействителен", http.StatusUnauthorized)
 		return
 	}
 
-	// Извлекаем логин пользователя из токена
+	// извлекаем логин пользователя из токена
 	claims, ok := token.Claims.(jwt.MapClaims)
 	if !ok {
 		http.Error(w, "Неправильный формат токена", http.StatusInternalServerError)
 		return
 	}
+
 	login, ok := claims["login"].(string)
 	if !ok {
 		http.Error(w, "Неправильный формат утверждения 'login'", http.StatusInternalServerError)
 		return
 	}
+
 	query := "INSERT INTO Tasks (expression, status, answer, login) VALUES (?, ?, ?, ?)"
 	result, err := db.Exec(query, userReq.Expression, "pending", 0, login)
 	if err != nil {
 		http.Error(w, "Ошибка при добавлении выражения в базу данных", http.StatusInternalServerError)
 		return
 	}
+
 	taskID, err := result.LastInsertId()
 	fmt.Fprintf(w, "Ваша задача добавлена в очередь. Ее идентификатор: "+strconv.Itoa(int(taskID)))
+	go func() {
+		addr := "app2:5000"
+		// установим соединение
+		conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 
-	host := "localhost"
-	port := "5000"
+		if err != nil {
+			log.Println("could not connect to grpc server: ", err)
+			os.Exit(1)
+		}
+		// закроем соединение, когда выйдем из функции
+		defer conn.Close()
 
-	addr := fmt.Sprintf("%s:%s", host, port) // используем адрес сервера
-	// установим соединение
-	conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		grpcClient := pb.NewOrchestratorServiceClient(conn)
 
-	if err != nil {
-		log.Println("could not connect to grpc server: ", err)
-		os.Exit(1)
-	}
-	// закроем соединение, когда выйдем из функции
-	defer conn.Close()
-	grpcClient := pb.NewOrchestratorServiceClient(conn)
-
-	_, err = grpcClient.Orchestrate(context.TODO(), &pb.Expression{
-		Expression: userReq.Expression,
-		TaskId:     int32(taskID),
-	})
-	if err != nil {
-		log.Println("Не удалось передать выражение оркестратору: ", err)
-	}
+		_, err = grpcClient.Orchestrate(context.TODO(), &pb.Expression{
+			Expression: userReq.Expression,
+			TaskId:     int32(taskID),
+		})
+		if err != nil {
+			log.Println("Не удалось передать выражение оркестратору: ", err)
+		}
+	}()
 
 }

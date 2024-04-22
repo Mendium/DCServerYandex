@@ -2,7 +2,6 @@ package main
 
 import (
 	"database/sql"
-	"fmt"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/mendium/orchestrator-c/proto"
 	"golang.org/x/net/context"
@@ -16,11 +15,28 @@ import (
 	"time"
 )
 
+var (
+	delayPlus     = 1000
+	delayMinus    = 1000
+	delayMultiply = 1000
+	delayDivide   = 1000
+
+	calcWorkers = 3
+)
+
 type Server struct {
 	proto.OrchestratorServiceServer
 }
 
-const dsn = "docker_test_exo:1111@tcp(localhost:3306)/docker_test"
+type ComputingProfile struct {
+	DelayPlus     uint `json:"delayPlus"`
+	DelayMinus    uint `json:"delayMinus"`
+	DelayMultiply uint `json:"delayMultiply"`
+	DelayDivide   uint `json:"delayDivide"`
+	CalcWorkers   uint `json:"calcWorkers"`
+}
+
+const dsn = "docker_test_exo:1111@tcp(db:3306)/docker_test"
 
 func NewServer() *Server {
 	return &Server{}
@@ -75,12 +91,16 @@ func calculate(expression string, resultChan chan int, wg *sync.WaitGroup, sem c
 	eval := func(op1, op2 int, operator rune) int {
 		switch operator {
 		case '+':
+			time.Sleep(time.Duration(delayPlus))
 			return op1 + op2
 		case '-':
+			time.Sleep(time.Duration(delayMinus))
 			return op1 - op2
 		case '*':
+			time.Sleep(time.Duration(delayMultiply))
 			return op1 * op2
 		case '/':
+			time.Sleep(time.Duration(delayDivide))
 			return op1 / op2
 		}
 		return 0
@@ -110,9 +130,6 @@ func calculate(expression string, resultChan chan int, wg *sync.WaitGroup, sem c
 		opStack = opStack[:len(opStack)-1]
 	}
 
-	// имитируем задержку выполнения
-	time.Sleep(5 * time.Second)
-
 	// отправляем результат в канал
 	resultChan <- stack[0]
 }
@@ -128,18 +145,14 @@ func priority(operator rune) int {
 }
 
 func main() {
-	host := "localhost"
-	port := "5000"
-
-	addr := fmt.Sprintf("%s:%s", host, port)
-	lis, err := net.Listen("tcp", addr) // будем ждать запросы по этому адресу
+	lis, err := net.Listen("tcp", "app2:5000") // будем ждать запросы по этому адресу
 
 	if err != nil {
 		log.Println("error starting tcp listener: ", err)
 		os.Exit(1)
 	}
 
-	log.Println("tcp listener started at port: ", port)
+	log.Println("tcp listener started at port: ", "5000")
 	//Creating new GRPC Server
 	grpcServer := grpc.NewServer()
 	orchestrateServiceServer := NewServer()
@@ -149,3 +162,19 @@ func main() {
 		os.Exit(1)
 	}
 }
+
+/* func changeHandler(w http.ResponseWriter, r *http.Request) {
+	var userProfile ComputingProfile
+	err := json.NewDecoder(r.Body).Decode(&userProfile)
+	if err != nil {
+		http.Error(w, "Ошибка при чтении JSON", http.StatusBadRequest)
+		return
+	}
+	delayPlus = int(userProfile.DelayPlus)
+	delayMinus = int(userProfile.DelayMinus)
+	delayMultiply = int(userProfile.DelayMultiply)
+	delayDivide = int(userProfile.DelayDivide)
+	calcWorkers = int(userProfile.CalcWorkers)
+
+	fmt.Fprintf(w, "Профиль вычислителя успешно изменён.")
+} */

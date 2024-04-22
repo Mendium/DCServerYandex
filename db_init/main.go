@@ -5,14 +5,13 @@ import (
 	"fmt"
 	"log"
 
-	_ "github.com/go-sql-driver/mysql" // Драйвер для MySQL
+	_ "github.com/go-sql-driver/mysql"
 )
 
 func main() {
-	// Строка подключения к вашей базе данных MySQL
+
 	connString := "docker_test_exo:1111@tcp(localhost:3306)/docker_test"
 
-	// Устанавливаем соединение с базой данных
 	db, err := sql.Open("mysql", connString)
 	if err != nil {
 		log.Fatalf("Ошибка при подключении к базе данных: %v\n", err)
@@ -36,7 +35,6 @@ func main() {
 		)
 	`
 
-	// Выполнение SQL запроса
 	_, err = db.Exec(query)
 	if err != nil {
 		fmt.Println("Ошибка при создании таблицы Users:", err)
@@ -49,7 +47,6 @@ func main() {
 		return
 	}
 
-	// Проверяем подключение к базе данных
 	err = db.Ping()
 	if err != nil {
 		log.Fatalf("Ошибка при проверке подключения к базе данных: %v\n", err)
@@ -59,6 +56,4 @@ func main() {
 
 	fmt.Println("Таблица Users успешно создана")
 	fmt.Println("Таблица Tasks успешно создана")
-	// Теперь вы можете выполнить запросы к вашей базе данных здесь
-
 }

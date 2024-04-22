@@ -7,8 +7,13 @@ services:
       dockerfile: Dockerfile
     ports:
       - "8080:8080"
+    networks:
+      - my-network
     depends_on:
       - app2
+      - db
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   app2:
     build:
@@ -16,8 +21,13 @@ services:
       dockerfile: Dockerfile
     ports:
       - "5000:5000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - my-network
     depends_on:
       - db
+
   db:
     image: mysql:latest
     restart: always
@@ -25,8 +35,13 @@ services:
       MYSQL_DATABASE: docker_test
       MYSQL_USER: docker_test_exo
       MYSQL_PASSWORD: 1111
-      MYSQL_ROOT_PASSWORD: toor
+      MYSQL_ROOT_PASSWORD: 1111
     ports:
       - "3306:3306"
+    networks:
+      - my-network
     volumes:
       - ./mysql-data:/var/lib/mysql
+
+networks:
+  my-network:

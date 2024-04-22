@@ -31,4 +31,10 @@
 ![Ex](docs/5352.png)
 ## Вход пользователя в систему и получение JWT-токена сроком на час (/login):
 ### Метод POST
+```bash
+{
+    "login": "testuser123",
+    "password": "testpassword123"
+}
 ```
+![Ex](docs/3342.png)

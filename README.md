@@ -16,4 +16,4 @@
      go run main.go
     ```
 ## Готово! Если у вас есть Docker Desktop, вы можете увидеть запущенные контейнеры:
-![Logo](https://github.com/Mendium/DCServerYa/blob/main/orig.png)  
+![Logo](https://github.com/Mendium/DCServerYandex/docs/1(2).png)  
